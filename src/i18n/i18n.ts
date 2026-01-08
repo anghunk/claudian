@@ -110,13 +110,15 @@ function tFallback(key: TranslationKey, params?: Record<string, string | number>
 
 /**
  * Set the current locale
+ * @returns true if locale was set successfully, false if locale is invalid
  */
-export function setLocale(locale: Locale): void {
+export function setLocale(locale: Locale): boolean {
   if (!translations[locale]) {
-    console.warn(`[i18n] Unknown locale: ${locale}`);
-    return;
+    console.warn(`[i18n] Unknown locale: ${locale}, keeping current locale: ${currentLocale}`);
+    return false;
   }
   currentLocale = locale;
+  return true;
 }
 
 /**

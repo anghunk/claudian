@@ -95,8 +95,12 @@ export class ClaudianSettingTab extends PluginSettingTab {
         dropdown
           .setValue(this.plugin.settings.locale)
           .onChange(async (value: Locale) => {
+            if (!setLocale(value)) {
+              // Invalid locale - reset dropdown to current value
+              dropdown.setValue(this.plugin.settings.locale);
+              return;
+            }
             this.plugin.settings.locale = value;
-            setLocale(value);
             await this.plugin.saveSettings();
             // Re-render the entire settings page with new language
             this.display();
@@ -185,7 +189,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
         .setDesc(t('settings.titleModel.desc'))
         .addDropdown((dropdown) => {
           // Add "Auto" option (empty string = use default logic)
-          dropdown.addOption('', t('settings.language.en') === 'English' ? 'Auto (Haiku)' : '自动 (Haiku)');
+          dropdown.addOption('', t('settings.titleModel.auto'));
 
           // Get available models from environment or defaults
           const envVars = parseEnvironmentVariables(this.plugin.settings.environmentVariables);
@@ -408,10 +412,6 @@ export class ClaudianSettingTab extends PluginSettingTab {
         text.inputEl.cols = 40;
       });
 
-    // Permission Rules section (CC-compatible)
-    // Note: Async rendering - section will be added when permissions load
-    this.renderPermissionRulesSection(containerEl);
-
     // Environment Variables section
     new Setting(containerEl).setName(t('settings.environment')).setHeading();
 
@@ -518,120 +518,4 @@ export class ClaudianSettingTab extends PluginSettingTab {
     });
   }
 
-  /**
-   * Render the Permission Rules section (CC-compatible format).
-   */
-  private async renderPermissionRulesSection(containerEl: HTMLElement): Promise<void> {
-    const permissions = await this.plugin.storage.getPermissions();
-
-    const desc = containerEl.createDiv({ cls: 'claudian-approved-desc' });
-    desc.createEl('p', {
-      text: t('settings.approvedActions.desc'),
-      cls: 'setting-item-description',
-    });
-
-    // Allow list
-    this.renderPermissionList(
-      containerEl,
-      t('settings.approvedActions.name'),
-      'Auto-approved without prompting in Safe mode.',
-      permissions.allow ?? [],
-      async (rule) => {
-        await this.plugin.storage.removePermissionRule(rule);
-        this.display();
-      },
-      async () => {
-        const perms = await this.plugin.storage.getPermissions();
-        perms.allow = [];
-        await this.plugin.storage.updatePermissions(perms);
-        this.display();
-      }
-    );
-
-    // Deny list
-    this.renderPermissionList(
-      containerEl,
-      'Denied actions',
-      'Always blocked without prompting.',
-      permissions.deny ?? [],
-      async (rule) => {
-        await this.plugin.storage.removePermissionRule(rule);
-        this.display();
-      },
-      async () => {
-        const perms = await this.plugin.storage.getPermissions();
-        perms.deny = [];
-        await this.plugin.storage.updatePermissions(perms);
-        this.display();
-      }
-    );
-
-    // Ask list
-    this.renderPermissionList(
-      containerEl,
-      'Always ask',
-      'Always require confirmation even if matching an allow rule.',
-      permissions.ask ?? [],
-      async (rule) => {
-        await this.plugin.storage.removePermissionRule(rule);
-        this.display();
-      },
-      async () => {
-        const perms = await this.plugin.storage.getPermissions();
-        perms.ask = [];
-        await this.plugin.storage.updatePermissions(perms);
-        this.display();
-      }
-    );
-  }
-
-  /**
-   * Render a single permission list (allow, deny, or ask).
-   */
-  private renderPermissionList(
-    containerEl: HTMLElement,
-    title: string,
-    description: string,
-    rules: string[],
-    onRemove: (rule: string) => Promise<void>,
-    onClearAll: () => Promise<void>
-  ): void {
-    const sectionEl = containerEl.createDiv({ cls: 'claudian-permission-section' });
-
-    const headerEl = sectionEl.createDiv({ cls: 'claudian-permission-header' });
-    headerEl.createSpan({ text: title, cls: 'claudian-permission-title' });
-
-    const descEl = sectionEl.createDiv({ cls: 'setting-item-description' });
-    descEl.setText(description);
-
-    if (rules.length === 0) {
-      const emptyEl = sectionEl.createDiv({ cls: 'claudian-approved-empty' });
-      emptyEl.setText(t('settings.approvedActions.empty'));
-    } else {
-      const listEl = sectionEl.createDiv({ cls: 'claudian-approved-list' });
-
-      for (const rule of rules) {
-        const itemEl = listEl.createDiv({ cls: 'claudian-approved-item' });
-
-        const ruleEl = itemEl.createDiv({ cls: 'claudian-approved-item-pattern' });
-        ruleEl.setText(rule);
-
-        const removeBtn = itemEl.createEl('button', {
-          text: t('settings.approvedActions.remove'),
-          cls: 'claudian-approved-remove-btn',
-        });
-        removeBtn.addEventListener('click', () => onRemove(rule));
-      }
-
-      // Clear all button
-      new Setting(sectionEl)
-        .setName(t('settings.approvedActions.clearAll'))
-        .addButton((button) =>
-          button
-            .setButtonText(t('settings.approvedActions.clearAllBtn'))
-            .setWarning()
-            .onClick(() => onClearAll())
-        );
-    }
-  }
 }

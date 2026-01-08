@@ -45,6 +45,7 @@ export type TranslationKey =
   | 'settings.autoTitle.desc'
   | 'settings.titleModel.name'
   | 'settings.titleModel.desc'
+  | 'settings.titleModel.auto'
   | 'settings.navMappings.name'
   | 'settings.navMappings.desc'
 
@@ -85,11 +86,20 @@ export type TranslationKey =
   // Settings - Approved Actions
   | 'settings.approvedActions.name'
   | 'settings.approvedActions.desc'
+  | 'settings.approvedActions.allowDesc'
   | 'settings.approvedActions.empty'
   | 'settings.approvedActions.clearAll'
   | 'settings.approvedActions.clearAllDesc'
   | 'settings.approvedActions.clearAllBtn'
   | 'settings.approvedActions.remove'
+
+  // Settings - Denied Actions
+  | 'settings.deniedActions.name'
+  | 'settings.deniedActions.desc'
+
+  // Settings - Always Ask
+  | 'settings.alwaysAsk.name'
+  | 'settings.alwaysAsk.desc'
 
   // Settings - Environment
   | 'settings.environment'
