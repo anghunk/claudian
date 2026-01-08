@@ -10,6 +10,8 @@ import { Notice, PluginSettingTab, Setting } from 'obsidian';
 
 import { getCliPlatformKey, getCurrentPlatformKey } from '../../core/types';
 import { DEFAULT_CLAUDE_MODELS } from '../../core/types/models';
+import { getAvailableLocales, getLocaleDisplayName,setLocale, t } from '../../i18n';
+import type { Locale } from '../../i18n/types';
 import type ClaudianPlugin from '../../main';
 import { EnvSnippetManager, McpSettingsManager, SlashCommandSettings } from '../../ui';
 import { getModelsFromEnvironment, parseEnvironmentVariables } from '../../utils/env';
@@ -78,15 +80,38 @@ export class ClaudianSettingTab extends PluginSettingTab {
     containerEl.empty();
     containerEl.addClass('claudian-settings');
 
+    // Update i18n locale from settings
+    setLocale(this.plugin.settings.locale);
+
+    // Language selector at the very top
+    new Setting(containerEl)
+      .setName(t('settings.language.name'))
+      .setDesc(t('settings.language.desc'))
+      .addDropdown((dropdown) => {
+        const locales = getAvailableLocales();
+        for (const locale of locales) {
+          dropdown.addOption(locale, getLocaleDisplayName(locale));
+        }
+        dropdown
+          .setValue(this.plugin.settings.locale)
+          .onChange(async (value: Locale) => {
+            this.plugin.settings.locale = value;
+            setLocale(value);
+            await this.plugin.saveSettings();
+            // Re-render the entire settings page with new language
+            this.display();
+          });
+      });
+
     // Customization section
-    new Setting(containerEl).setName('Customization').setHeading();
+    new Setting(containerEl).setName(t('settings.customization')).setHeading();
 
     new Setting(containerEl)
-      .setName('What should Claudian call you?')
-      .setDesc('Your name for personalized greetings (leave empty for generic greetings)')
+      .setName(t('settings.userName.name'))
+      .setDesc(t('settings.userName.desc'))
       .addText((text) =>
         text
-          .setPlaceholder('Enter your name')
+          .setPlaceholder(t('settings.userName.name'))
           .setValue(this.plugin.settings.userName)
           .onChange(async (value) => {
             this.plugin.settings.userName = value;
@@ -95,8 +120,8 @@ export class ClaudianSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName('Excluded tags')
-      .setDesc('Notes with these tags will not auto-load as context (one per line, without #)')
+      .setName(t('settings.excludedTags.name'))
+      .setDesc(t('settings.excludedTags.desc'))
       .addTextArea((text) => {
         text
           .setPlaceholder('system\nprivate\ndraft')
@@ -113,8 +138,8 @@ export class ClaudianSettingTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
-      .setName('Media folder')
-      .setDesc('Folder containing attachments/images. When notes use ![[image.jpg]], Claude will look here. Leave empty for vault root.')
+      .setName(t('settings.mediaFolder.name'))
+      .setDesc(t('settings.mediaFolder.desc'))
       .addText((text) => {
         text
           .setPlaceholder('attachments')
@@ -127,11 +152,11 @@ export class ClaudianSettingTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
-      .setName('Custom system prompt')
-      .setDesc('Additional instructions appended to the default system prompt')
+      .setName(t('settings.systemPrompt.name'))
+      .setDesc(t('settings.systemPrompt.desc'))
       .addTextArea((text) => {
         text
-          .setPlaceholder('Add custom instructions here...')
+          .setPlaceholder(t('settings.systemPrompt.name'))
           .setValue(this.plugin.settings.systemPrompt)
           .onChange(async (value) => {
             this.plugin.settings.systemPrompt = value;
@@ -142,8 +167,8 @@ export class ClaudianSettingTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
-      .setName('Auto-generate conversation titles')
-      .setDesc('Automatically generate conversation titles after the first exchange.')
+      .setName(t('settings.autoTitle.name'))
+      .setDesc(t('settings.autoTitle.desc'))
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.enableAutoTitleGeneration)
@@ -156,11 +181,11 @@ export class ClaudianSettingTab extends PluginSettingTab {
 
     if (this.plugin.settings.enableAutoTitleGeneration) {
       new Setting(containerEl)
-        .setName('Title generation model')
-        .setDesc('Model used for auto-generating conversation titles.')
+        .setName(t('settings.titleModel.name'))
+        .setDesc(t('settings.titleModel.desc'))
         .addDropdown((dropdown) => {
           // Add "Auto" option (empty string = use default logic)
-          dropdown.addOption('', 'Auto (Haiku)');
+          dropdown.addOption('', t('settings.language.en') === 'English' ? 'Auto (Haiku)' : '自动 (Haiku)');
 
           // Get available models from environment or defaults
           const envVars = parseEnvironmentVariables(this.plugin.settings.environmentVariables);
@@ -181,8 +206,8 @@ export class ClaudianSettingTab extends PluginSettingTab {
     }
 
     new Setting(containerEl)
-      .setName('Vim-style navigation mappings')
-      .setDesc('One mapping per line. Format: "map <key> <action>" (actions: scrollUp, scrollDown, focusInput).')
+      .setName(t('settings.navMappings.name'))
+      .setDesc(t('settings.navMappings.desc'))
       .addTextArea((text) => {
         let pendingValue = buildNavMappingText(this.plugin.settings.keyboardNavigation);
         let saveTimeout: number | null = null;
@@ -196,7 +221,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
           const result = parseNavMappings(pendingValue);
           if (!result.settings) {
             if (showError) {
-              new Notice(`Invalid navigation mappings: ${result.error}`);
+              new Notice(`${t('common.error')}: ${result.error}`);
               pendingValue = buildNavMappingText(this.plugin.settings.keyboardNavigation);
               text.setValue(pendingValue);
             }
@@ -235,40 +260,40 @@ export class ClaudianSettingTab extends PluginSettingTab {
       });
 
     // Hotkeys section
-    new Setting(containerEl).setName('Hotkeys').setHeading();
+    new Setting(containerEl).setName(t('settings.hotkeys')).setHeading();
 
     const inlineEditCommandId = 'claudian:inline-edit';
     const inlineEditHotkey = getHotkeyForCommand(this.app, inlineEditCommandId);
     new Setting(containerEl)
-      .setName('Inline edit hotkey')
+      .setName(t('settings.inlineEditHotkey.name'))
       .setDesc(inlineEditHotkey
-        ? `Current: ${inlineEditHotkey}`
-        : 'No hotkey set. Click to configure.')
+        ? t('settings.inlineEditHotkey.descWithKey', { hotkey: inlineEditHotkey })
+        : t('settings.inlineEditHotkey.descNoKey'))
       .addButton((button) =>
         button
-          .setButtonText(inlineEditHotkey ? 'Change' : 'Set hotkey')
+          .setButtonText(inlineEditHotkey ? t('settings.inlineEditHotkey.btnChange') : t('settings.inlineEditHotkey.btnSet'))
           .onClick(() => openHotkeySettings(this.app))
       );
 
     const openChatCommandId = 'claudian:open-view';
     const openChatHotkey = getHotkeyForCommand(this.app, openChatCommandId);
     new Setting(containerEl)
-      .setName('Open chat hotkey')
+      .setName(t('settings.openChatHotkey.name'))
       .setDesc(openChatHotkey
-        ? `Current: ${openChatHotkey}`
-        : 'No hotkey set. Click to configure.')
+        ? t('settings.openChatHotkey.descWithKey', { hotkey: openChatHotkey })
+        : t('settings.openChatHotkey.descNoKey'))
       .addButton((button) =>
         button
-          .setButtonText(openChatHotkey ? 'Change' : 'Set hotkey')
+          .setButtonText(openChatHotkey ? t('settings.openChatHotkey.btnChange') : t('settings.openChatHotkey.btnSet'))
           .onClick(() => openHotkeySettings(this.app))
       );
 
     // Slash Commands section
-    new Setting(containerEl).setName('Slash Commands').setHeading();
+    new Setting(containerEl).setName(t('settings.slashCommands.name')).setHeading();
 
     const slashCommandsDesc = containerEl.createDiv({ cls: 'claudian-slash-settings-desc' });
     slashCommandsDesc.createEl('p', {
-      text: 'Create custom prompt templates triggered by /command. Use $ARGUMENTS for all arguments, $1/$2 for positional args, @file for file content, and !`bash` for command output.',
+      text: t('settings.slashCommands.desc'),
       cls: 'setting-item-description',
     });
 
@@ -276,11 +301,11 @@ export class ClaudianSettingTab extends PluginSettingTab {
     new SlashCommandSettings(slashCommandsContainer, this.plugin);
 
     // MCP Servers section
-    new Setting(containerEl).setName('MCP Servers').setHeading();
+    new Setting(containerEl).setName(t('settings.mcpServers.name')).setHeading();
 
     const mcpDesc = containerEl.createDiv({ cls: 'claudian-mcp-settings-desc' });
     mcpDesc.createEl('p', {
-      text: 'Configure Model Context Protocol servers to extend Claude\'s capabilities with external tools and data sources. Servers with context-saving mode require @mention to activate.',
+      text: t('settings.mcpServers.desc'),
       cls: 'setting-item-description',
     });
 
@@ -288,11 +313,11 @@ export class ClaudianSettingTab extends PluginSettingTab {
     new McpSettingsManager(mcpContainer, this.plugin);
 
     // Safety section
-    new Setting(containerEl).setName('Safety').setHeading();
+    new Setting(containerEl).setName(t('settings.safety')).setHeading();
 
     new Setting(containerEl)
-      .setName('Load user Claude settings')
-      .setDesc('Load ~/.claude/settings.json. When enabled, user\'s Claude Code permission rules may bypass Safe mode.')
+      .setName(t('settings.loadUserSettings.name'))
+      .setDesc(t('settings.loadUserSettings.desc'))
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.loadUserClaudeSettings)
@@ -303,8 +328,8 @@ export class ClaudianSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName('Enable command blocklist')
-      .setDesc('Block potentially dangerous bash commands')
+      .setName(t('settings.enableBlocklist.name'))
+      .setDesc(t('settings.enableBlocklist.desc'))
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.enableBlocklist)
@@ -319,8 +344,8 @@ export class ClaudianSettingTab extends PluginSettingTab {
     const platformLabel = isWindows ? 'Windows' : 'Unix';
 
     new Setting(containerEl)
-      .setName(`Blocked commands (${platformLabel})`)
-      .setDesc(`Patterns to block on ${platformLabel} (one per line). Supports regex.`)
+      .setName(t('settings.blockedCommands.name', { platform: platformLabel }))
+      .setDesc(t('settings.blockedCommands.desc', { platform: platformLabel }))
       .addTextArea((text) => {
         // Platform-aware placeholder
         const placeholder = isWindows
@@ -343,8 +368,8 @@ export class ClaudianSettingTab extends PluginSettingTab {
     // On Windows, show Unix blocklist too since Git Bash can run Unix commands
     if (isWindows) {
       new Setting(containerEl)
-        .setName('Blocked commands (Unix/Git Bash)')
-        .setDesc('Unix patterns also blocked on Windows because Git Bash can invoke them.')
+        .setName(t('settings.blockedCommands.unixName'))
+        .setDesc(t('settings.blockedCommands.unixDesc'))
         .addTextArea((text) => {
           text
             .setPlaceholder('rm -rf\nchmod 777\nmkfs')
@@ -362,8 +387,8 @@ export class ClaudianSettingTab extends PluginSettingTab {
     }
 
     new Setting(containerEl)
-      .setName('Allowed export paths')
-      .setDesc('Paths outside the vault where files can be exported (one per line). Supports ~ for home directory.')
+      .setName(t('settings.exportPaths.name'))
+      .setDesc(t('settings.exportPaths.desc'))
       .addTextArea((text) => {
         // Platform-aware placeholder
         const placeholder = process.platform === 'win32'
@@ -388,11 +413,11 @@ export class ClaudianSettingTab extends PluginSettingTab {
     this.renderPermissionRulesSection(containerEl);
 
     // Environment Variables section
-    new Setting(containerEl).setName('Environment').setHeading();
+    new Setting(containerEl).setName(t('settings.environment')).setHeading();
 
     new Setting(containerEl)
-      .setName('Custom variables')
-      .setDesc('Environment variables for Claude SDK (KEY=VALUE format, one per line)')
+      .setName(t('settings.customVariables.name'))
+      .setDesc(t('settings.customVariables.desc'))
       .addTextArea((text) => {
         text
           .setPlaceholder('ANTHROPIC_API_KEY=your-key\nANTHROPIC_BASE_URL=https://api.example.com\nANTHROPIC_MODEL=custom-model')
@@ -410,17 +435,17 @@ export class ClaudianSettingTab extends PluginSettingTab {
     new EnvSnippetManager(envSnippetsContainer, this.plugin);
 
     // Advanced section
-    new Setting(containerEl).setName('Advanced').setHeading();
+    new Setting(containerEl).setName(t('settings.advanced')).setHeading();
 
     // Get current platform key for platform-specific CLI path storage
     const cliPlatformKey = getCliPlatformKey();
 
     const cliPathDescription = process.platform === 'win32'
-      ? 'Custom path to Claude Code CLI. Leave empty for auto-detection. For the native installer, use claude.exe. For npm/pnpm/yarn or other package manager installs, use the cli.js path (not claude.cmd).'
-      : 'Custom path to Claude Code CLI. Leave empty for auto-detection. Paste the output of "which claude" — works for both native and npm/pnpm/yarn installs.';
+      ? t('settings.cliPath.desc') + ' For the native installer, use claude.exe. For npm/pnpm/yarn or other package manager installs, use the cli.js path (not claude.cmd).'
+      : t('settings.cliPath.desc') + ' Paste the output of "which claude" — works for both native and npm/pnpm/yarn installs.';
 
     const cliPathSetting = new Setting(containerEl)
-      .setName('Claude CLI path')
+      .setName(t('settings.cliPath.name'))
       .setDesc(cliPathDescription);
 
     // Create validation message element
@@ -438,11 +463,11 @@ export class ClaudianSettingTab extends PluginSettingTab {
       const expandedPath = expandHomePath(trimmed);
 
       if (!fs.existsSync(expandedPath)) {
-        return 'Path does not exist';
+        return t('settings.cliPath.validation.notExist');
       }
       const stat = fs.statSync(expandedPath);
       if (!stat.isFile()) {
-        return 'Path is a directory, not a file';
+        return t('settings.cliPath.validation.isDirectory');
       }
       return null;
     };
@@ -491,7 +516,6 @@ export class ClaudianSettingTab extends PluginSettingTab {
         text.inputEl.style.borderColor = 'var(--text-error)';
       }
     });
-
   }
 
   /**
@@ -502,14 +526,14 @@ export class ClaudianSettingTab extends PluginSettingTab {
 
     const desc = containerEl.createDiv({ cls: 'claudian-approved-desc' });
     desc.createEl('p', {
-      text: 'Permission rules control which tool actions are automatically allowed, denied, or always require confirmation.',
+      text: t('settings.approvedActions.desc'),
       cls: 'setting-item-description',
     });
 
     // Allow list
     this.renderPermissionList(
       containerEl,
-      'Allowed actions',
+      t('settings.approvedActions.name'),
       'Auto-approved without prompting in Safe mode.',
       permissions.allow ?? [],
       async (rule) => {
@@ -582,7 +606,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
 
     if (rules.length === 0) {
       const emptyEl = sectionEl.createDiv({ cls: 'claudian-approved-empty' });
-      emptyEl.setText('No rules configured.');
+      emptyEl.setText(t('settings.approvedActions.empty'));
     } else {
       const listEl = sectionEl.createDiv({ cls: 'claudian-approved-list' });
 
@@ -593,7 +617,7 @@ export class ClaudianSettingTab extends PluginSettingTab {
         ruleEl.setText(rule);
 
         const removeBtn = itemEl.createEl('button', {
-          text: 'Remove',
+          text: t('settings.approvedActions.remove'),
           cls: 'claudian-approved-remove-btn',
         });
         removeBtn.addEventListener('click', () => onRemove(rule));
@@ -601,10 +625,10 @@ export class ClaudianSettingTab extends PluginSettingTab {
 
       // Clear all button
       new Setting(sectionEl)
-        .setName(`Clear all ${title.toLowerCase()}`)
+        .setName(t('settings.approvedActions.clearAll'))
         .addButton((button) =>
           button
-            .setButtonText('Clear all')
+            .setButtonText(t('settings.approvedActions.clearAllBtn'))
             .setWarning()
             .onClick(() => onClearAll())
         );
